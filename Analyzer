@@ -1,0 +1,640 @@
+import React, { useState } from 'react';
+import { Upload, FileVideo, Loader2, Download, Clock, Users, Target, TrendingUp, FileText, Mail, Calendar, CheckCircle2, AlertCircle, Zap, Brain, MessageSquare } from 'lucide-react';
+
+export default function MeetingAnalyzer() {
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [activeTab, setActiveTab] = useState('summary');
+  const [progress, setProgress] = useState(0);
+
+  const handleFileUpload = (e) => {
+    const uploadedFile = e.target.files[0];
+    if (uploadedFile && uploadedFile.type.startsWith('video/')) {
+      setFile(uploadedFile);
+      setAnalysis(null);
+    }
+  };
+
+  const analyzeMeeting = async () => {
+    if (!file) return;
+
+    setLoading(true);
+    setProgress(0);
+
+    // Simulate processing stages
+    const stages = [
+      { progress: 20, message: 'Extracting audio...' },
+      { progress: 40, message: 'Transcribing speech...' },
+      { progress: 60, message: 'Analyzing content...' },
+      { progress: 80, message: 'Generating insights...' },
+      { progress: 100, message: 'Complete!' }
+    ];
+
+    for (let stage of stages) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setProgress(stage.progress);
+    }
+
+    // Simulate AI analysis
+    const mockAnalysis = {
+      metadata: {
+        duration: '45 minutes',
+        date: new Date().toLocaleDateString(),
+        participants: ['Sarah Chen', 'Michael Rodriguez', 'Emma Watson', 'David Kim'],
+        meetingType: 'Product Planning'
+      },
+      summary: `This product planning meeting focused on the Q1 2026 roadmap for the mobile application redesign. The team discussed key feature priorities, including the implementation of dark mode, improved notification systems, and enhanced user analytics. Budget allocation of $150K was approved for the development phase. Critical decisions were made regarding the timeline, with a target launch date set for March 15, 2026. The team identified potential risks around third-party API integrations and agreed on mitigation strategies.`,
+      keyPoints: [
+        'Q1 2026 mobile app redesign approved with $150K budget',
+        'Dark mode implementation prioritized for user experience',
+        'March 15, 2026 set as target launch date',
+        'Third-party API integration identified as main technical risk',
+        'Weekly sprint reviews scheduled for progress tracking'
+      ],
+      actionItems: [
+        { task: 'Create detailed technical specification document', owner: 'David Kim', deadline: 'Dec 26, 2025', priority: 'High' },
+        { task: 'Conduct user research survey for dark mode preferences', owner: 'Emma Watson', deadline: 'Dec 23, 2025', priority: 'High' },
+        { task: 'Evaluate third-party API vendors and prepare comparison', owner: 'Michael Rodriguez', deadline: 'Jan 5, 2026', priority: 'Medium' },
+        { task: 'Set up project tracking board and sprint schedule', owner: 'Sarah Chen', deadline: 'Dec 20, 2025', priority: 'High' }
+      ],
+      decisions: [
+        'Approved $150K budget for mobile app redesign project',
+        'Selected agile methodology with 2-week sprints',
+        'Decided to prioritize iOS development before Android',
+        'Agreed to use React Native as the development framework'
+      ],
+      sentiment: {
+        overall: 'Positive',
+        score: 78,
+        breakdown: {
+          positive: 65,
+          neutral: 25,
+          negative: 10
+        }
+      },
+      topics: [
+        { name: 'Budget & Resources', duration: '12 min', percentage: 27 },
+        { name: 'Technical Architecture', duration: '15 min', percentage: 33 },
+        { name: 'Timeline & Milestones', duration: '10 min', percentage: 22 },
+        { name: 'Risk Management', duration: '8 min', percentage: 18 }
+      ],
+      speakerInsights: [
+        { name: 'Sarah Chen', speakingTime: '35%', sentiment: 'Positive', contributions: 12 },
+        { name: 'David Kim', speakingTime: '28%', sentiment: 'Neutral', contributions: 9 },
+        { name: 'Emma Watson', speakingTime: '22%', sentiment: 'Positive', contributions: 8 },
+        { name: 'Michael Rodriguez', speakingTime: '15%', sentiment: 'Positive', contributions: 6 }
+      ],
+      transcript: `[00:00] Sarah Chen: Good morning everyone. Let's start with our Q1 planning discussion.
+
+[00:15] David Kim: Thanks Sarah. I've prepared some technical considerations for the mobile redesign.
+
+[00:45] Emma Watson: Before we dive in, I'd like to share some user feedback we've received about the current app.
+
+[01:20] Michael Rodriguez: Great idea. The feedback will help us prioritize features.
+
+[02:00] Sarah Chen: Let's focus on three main areas today: features, timeline, and budget...
+
+[Full transcript would continue here...]`
+    };
+
+    setAnalysis(mockAnalysis);
+    setLoading(false);
+  };
+
+  const generateMOM = () => {
+    if (!analysis) return '';
+
+    return `MINUTES OF MEETING
+
+Date: ${analysis.metadata.date}
+Duration: ${analysis.metadata.duration}
+Meeting Type: ${analysis.metadata.meetingType}
+Attendees: ${analysis.metadata.participants.join(', ')}
+
+SUMMARY
+${analysis.summary}
+
+KEY DECISIONS
+${analysis.decisions.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+
+ACTION ITEMS
+${analysis.actionItems.map((item, i) => `${i + 1}. ${item.task}
+   Assigned to: ${item.owner}
+   Deadline: ${item.deadline}
+   Priority: ${item.priority}`).join('\n\n')}
+
+NEXT MEETING
+To be scheduled for progress review on sprint completion.`;
+  };
+
+  const generateFollowupEmail = () => {
+    if (!analysis) return '';
+
+    return `Subject: Meeting Summary & Action Items - ${analysis.metadata.meetingType}
+
+Dear Team,
+
+Thank you for attending today's ${analysis.metadata.meetingType} meeting. Below is a summary of our discussion and the action items we identified.
+
+MEETING SUMMARY
+${analysis.summary}
+
+YOUR ACTION ITEMS
+${analysis.actionItems.map((item, i) => `${i + 1}. ${item.task}
+   Owner: ${item.owner}
+   Deadline: ${item.deadline}
+   Priority: ${item.priority}`).join('\n\n')}
+
+KEY DECISIONS MADE
+${analysis.decisions.map((d, i) => `• ${d}`).join('\n')}
+
+Please review your assigned tasks and let me know if you have any questions or concerns.
+
+Looking forward to our next sync!
+
+Best regards`;
+  };
+
+  const downloadDocument = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Brain className="w-12 h-12 text-purple-400" />
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              AI Meeting Analyzer
+            </h1>
+          </div>
+          <p className="text-gray-300 text-lg">
+            Upload your meeting recording and get instant insights, summaries, and action items
+          </p>
+        </div>
+
+        {/* Upload Section */}
+        {!analysis && (
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
+              <label className="flex flex-col items-center gap-4 cursor-pointer">
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={loading}
+                />
+                <div className="w-full p-12 border-2 border-dashed border-purple-400/50 rounded-xl hover:border-purple-400 transition-colors bg-purple-500/5">
+                  <div className="flex flex-col items-center gap-4">
+                    {file ? (
+                      <>
+                        <FileVideo className="w-16 h-16 text-purple-400" />
+                        <div className="text-center">
+                          <p className="text-lg font-semibold">{file.name}</p>
+                          <p className="text-sm text-gray-400">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-16 h-16 text-gray-400" />
+                        <div className="text-center">
+                          <p className="text-lg font-semibold">
+                            Drop your meeting video here
+                          </p>
+                          <p className="text-sm text-gray-400 mt-2">
+                            or click to browse files
+                          </p>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Supports MP4, MOV, AVI, WebM
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </label>
+
+              {file && !loading && (
+                <button
+                  onClick={analyzeMeeting}
+                  className="w-full mt-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold text-lg hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-5 h-5" />
+                  Analyze Meeting
+                </button>
+              )}
+
+              {loading && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex items-center justify-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                    <span className="text-lg">Analyzing your meeting...</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500 ease-out"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-center text-sm text-gray-400">
+                    {progress < 20 && "Extracting audio..."}
+                    {progress >= 20 && progress < 40 && "Transcribing speech..."}
+                    {progress >= 40 && progress < 60 && "Analyzing content..."}
+                    {progress >= 60 && progress < 80 && "Generating insights..."}
+                    {progress >= 80 && "Almost done!"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Features Preview */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+              {[
+                { icon: FileText, label: 'Smart Summary' },
+                { icon: CheckCircle2, label: 'Action Items' },
+                { icon: TrendingUp, label: 'Sentiment Analysis' },
+                { icon: MessageSquare, label: 'Full Transcript' }
+              ].map((feature, i) => (
+                <div
+                  key={i}
+                  className="bg-white/5 backdrop-blur rounded-lg p-4 border border-white/10 text-center"
+                >
+                  <feature.icon className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+                  <p className="text-sm">{feature.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Results Section */}
+        {analysis && (
+          <div className="space-y-6">
+            {/* Metadata Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-8 h-8 text-blue-400" />
+                  <div>
+                    <p className="text-sm text-gray-400">Duration</p>
+                    <p className="text-xl font-bold">{analysis.metadata.duration}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+                <div className="flex items-center gap-3">
+                  <Users className="w-8 h-8 text-green-400" />
+                  <div>
+                    <p className="text-sm text-gray-400">Participants</p>
+                    <p className="text-xl font-bold">{analysis.metadata.participants.length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+                <div className="flex items-center gap-3">
+                  <Target className="w-8 h-8 text-purple-400" />
+                  <div>
+                    <p className="text-sm text-gray-400">Action Items</p>
+                    <p className="text-xl font-bold">{analysis.actionItems.length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="w-8 h-8 text-pink-400" />
+                  <div>
+                    <p className="text-sm text-gray-400">Sentiment</p>
+                    <p className="text-xl font-bold">{analysis.sentiment.overall}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-white/10 backdrop-blur rounded-xl border border-white/20 overflow-hidden">
+              <div className="flex overflow-x-auto border-b border-white/20">
+                {[
+                  { id: 'summary', label: 'Summary', icon: FileText },
+                  { id: 'actions', label: 'Action Items', icon: CheckCircle2 },
+                  { id: 'insights', label: 'Insights', icon: TrendingUp },
+                  { id: 'transcript', label: 'Transcript', icon: MessageSquare },
+                  { id: 'documents', label: 'Documents', icon: Download }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-6 py-4 font-semibold transition-colors whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'bg-purple-500/30 text-purple-300 border-b-2 border-purple-400'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <tab.icon className="w-5 h-5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-6">
+                {/* Summary Tab */}
+                {activeTab === 'summary' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                        <FileText className="w-6 h-6 text-purple-400" />
+                        Meeting Summary
+                      </h3>
+                      <p className="text-gray-300 leading-relaxed text-lg">
+                        {analysis.summary}
+                      </p>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xl font-bold mb-3">Key Points</h4>
+                      <ul className="space-y-2">
+                        {analysis.keyPoints.map((point, i) => (
+                          <li key={i} className="flex items-start gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-green-400 mt-1 flex-shrink-0" />
+                            <span className="text-gray-300">{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xl font-bold mb-3">Key Decisions</h4>
+                      <ul className="space-y-2">
+                        {analysis.decisions.map((decision, i) => (
+                          <li key={i} className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-blue-400 mt-1 flex-shrink-0" />
+                            <span className="text-gray-300">{decision}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Items Tab */}
+                {activeTab === 'actions' && (
+                  <div className="space-y-4">
+                    <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                      <Target className="w-6 h-6 text-purple-400" />
+                      Action Items
+                    </h3>
+                    {analysis.actionItems.map((item, i) => (
+                      <div
+                        key={i}
+                        className="bg-white/5 rounded-lg p-4 border border-white/10 hover:border-purple-400/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg mb-2">{item.task}</h4>
+                            <div className="flex flex-wrap gap-4 text-sm">
+                              <span className="flex items-center gap-1">
+                                <Users className="w-4 h-4 text-blue-400" />
+                                <span className="text-gray-400">Owner:</span>
+                                <span className="text-blue-400">{item.owner}</span>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-green-400" />
+                                <span className="text-gray-400">Due:</span>
+                                <span className="text-green-400">{item.deadline}</span>
+                              </span>
+                            </div>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                              item.priority === 'High'
+                                ? 'bg-red-500/20 text-red-400'
+                                : item.priority === 'Medium'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-blue-500/20 text-blue-400'
+                            }`}
+                          >
+                            {item.priority}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Insights Tab */}
+                {activeTab === 'insights' && (
+                  <div className="space-y-6">
+                    {/* Sentiment Analysis */}
+                    <div>
+                      <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-6 h-6 text-purple-400" />
+                        Sentiment Analysis
+                      </h3>
+                      <div className="bg-white/5 rounded-lg p-6 border border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-lg">Overall Sentiment</span>
+                          <span className="text-2xl font-bold text-green-400">
+                            {analysis.sentiment.score}%
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          {Object.entries(analysis.sentiment.breakdown).map(([key, value]) => (
+                            <div key={key}>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span className="capitalize">{key}</span>
+                                <span>{value}%</span>
+                              </div>
+                              <div className="w-full bg-gray-700 rounded-full h-2">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    key === 'positive'
+                                      ? 'bg-green-500'
+                                      : key === 'neutral'
+                                      ? 'bg-yellow-500'
+                                      : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${value}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Topic Breakdown */}
+                    <div>
+                      <h4 className="text-xl font-bold mb-3">Topic Breakdown</h4>
+                      <div className="space-y-3">
+                        {analysis.topics.map((topic, i) => (
+                          <div key={i} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="font-semibold">{topic.name}</span>
+                              <span className="text-sm text-gray-400">{topic.duration}</span>
+                            </div>
+                            <div className="w-full bg-gray-700 rounded-full h-2">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+                                style={{ width: `${topic.percentage}%` }}
+                              />
+                            </div>
+                            <div className="text-right text-sm text-gray-400 mt-1">
+                              {topic.percentage}% of meeting
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Speaker Insights */}
+                    <div>
+                      <h4 className="text-xl font-bold mb-3">Speaker Insights</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {analysis.speakerInsights.map((speaker, i) => (
+                          <div
+                            key={i}
+                            className="bg-white/5 rounded-lg p-4 border border-white/10"
+                          >
+                            <h5 className="font-semibold text-lg mb-3">{speaker.name}</h5>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Speaking Time</span>
+                                <span className="font-semibold text-purple-400">
+                                  {speaker.speakingTime}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Contributions</span>
+                                <span className="font-semibold">{speaker.contributions}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Sentiment</span>
+                                <span
+                                  className={`font-semibold ${
+                                    speaker.sentiment === 'Positive'
+                                      ? 'text-green-400'
+                                      : speaker.sentiment === 'Neutral'
+                                      ? 'text-yellow-400'
+                                      : 'text-red-400'
+                                  }`}
+                                >
+                                  {speaker.sentiment}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Transcript Tab */}
+                {activeTab === 'transcript' && (
+                  <div>
+                    <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                      <MessageSquare className="w-6 h-6 text-purple-400" />
+                      Full Transcript
+                    </h3>
+                    <div className="bg-white/5 rounded-lg p-6 border border-white/10 font-mono text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {analysis.transcript}
+                    </div>
+                  </div>
+                )}
+
+                {/* Documents Tab */}
+                {activeTab === 'documents' && (
+                  <div className="space-y-4">
+                    <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                      <Download className="w-6 h-6 text-purple-400" />
+                      Download Documents
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button
+                        onClick={() =>
+                          downloadDocument(generateMOM(), 'Minutes_of_Meeting.txt')
+                        }
+                        className="bg-white/5 hover:bg-white/10 rounded-lg p-6 border border-white/10 transition-all hover:border-purple-400 text-left group"
+                      >
+                        <FileText className="w-12 h-12 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-lg mb-2">Minutes of Meeting</h4>
+                        <p className="text-sm text-gray-400">
+                          Formal document with decisions and action items
+                        </p>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          downloadDocument(generateFollowupEmail(), 'Followup_Email.txt')
+                        }
+                        className="bg-white/5 hover:bg-white/10 rounded-lg p-6 border border-white/10 transition-all hover:border-purple-400 text-left group"
+                      >
+                        <Mail className="w-12 h-12 text-blue-400 mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-lg mb-2">Follow-up Email</h4>
+                        <p className="text-sm text-gray-400">
+                          Ready-to-send email with summary and tasks
+                        </p>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          downloadDocument(analysis.transcript, 'Full_Transcript.txt')
+                        }
+                        className="bg-white/5 hover:bg-white/10 rounded-lg p-6 border border-white/10 transition-all hover:border-purple-400 text-left group"
+                      >
+                        <MessageSquare className="w-12 h-12 text-green-400 mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-lg mb-2">Full Transcript</h4>
+                        <p className="text-sm text-gray-400">
+                          Complete timestamped conversation
+                        </p>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          downloadDocument(
+                            JSON.stringify(analysis, null, 2),
+                            'Meeting_Data.json'
+                          )
+                        }
+                        className="bg-white/5 hover:bg-white/10 rounded-lg p-6 border border-white/10 transition-all hover:border-purple-400 text-left group"
+                      >
+                        <FileText className="w-12 h-12 text-pink-400 mb-3 group-hover:scale-110 transition-transform" />
+                        <h4 className="font-semibold text-lg mb-2">Raw Data (JSON)</h4>
+                        <p className="text-sm text-gray-400">
+                          All analysis data in JSON format
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* New Analysis Button */}
+            <button
+              onClick={() => {
+                setAnalysis(null);
+                setFile(null);
+                setActiveTab('summary');
+              }}
+              className="w-full py-4 bg-white/10 hover:bg-white/20 rounded-xl font-semibold transition-all border border-white/20"
+            >
+              Analyze Another Meeting
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
