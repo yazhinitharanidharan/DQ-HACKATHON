@@ -1,0 +1,828 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Calendar, Clock, Users, FileText, Edit, Trash2, Plus, ChevronLeft, ChevronRight, Star, AlertTriangle, Bell, BellRing, RefreshCw } from 'lucide-react';
+
+const MeetingAssistant = () => {
+  const [meetings, setMeetings] = useState([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showModal, setShowModal] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
+  const [view, setView] = useState('calendar');
+  const [notifications, setNotifications] = useState([]);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState({ meetingId: null, newDate: '', newTime: '' });
+  const audioContextRef = useRef(null);
+  const checkIntervalRef = useRef(null);
+  
+  const [formData, setFormData] = useState({
+    title: '',
+    date: '',
+    time: '',
+    duration: '60',
+    participants: '',
+    priority: 'medium',
+    agenda: '',
+    documents: []
+  });
+
+  // Initialize audio context
+  useEffect(() => {
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  // Load meetings and start reminder checks
+  useEffect(() => {
+    loadMeetings();
+    
+    // Check for reminders every 30 seconds
+    checkIntervalRef.current = setInterval(() => {
+      checkUpcomingMeetings();
+    }, 30000);
+
+    // Check immediately on mount
+    checkUpcomingMeetings();
+
+    return () => {
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
+    };
+  }, [meetings]);
+
+  const loadMeetings = async () => {
+    try {
+      const result = await window.storage.list('meeting:');
+      if (result && result.keys) {
+        const loadedMeetings = await Promise.all(
+          result.keys.map(async (key) => {
+            const data = await window.storage.get(key);
+            return data ? JSON.parse(data.value) : null;
+          })
+        );
+        setMeetings(loadedMeetings.filter(m => m !== null));
+      }
+    } catch (error) {
+      console.log('No meetings found yet');
+    }
+  };
+
+  // Play reminder sound
+  const playReminderSound = () => {
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+
+    // Create a pleasant notification sound
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.5);
+
+    // Second beep
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.frequency.value = 1000;
+      osc2.type = 'sine';
+      gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc2.start(ctx.currentTime);
+      osc2.stop(ctx.currentTime + 0.5);
+    }, 600);
+  };
+
+  // Check for upcoming meetings (5 minutes before)
+  const checkUpcomingMeetings = () => {
+    const now = new Date();
+    const fiveMinutesLater = new Date(now.getTime() + 5 * 60000);
+
+    meetings.forEach(meeting => {
+      if (meeting.status === 'scheduled' && !meeting.reminderSent) {
+        const meetingDateTime = new Date(`${meeting.date}T${meeting.time}`);
+        const timeDiff = meetingDateTime - now;
+
+        // If meeting is within 5 minutes
+        if (timeDiff > 0 && timeDiff <= 5 * 60000) {
+          playReminderSound();
+          addNotification(`Reminder: "${meeting.title}" starts in ${Math.round(timeDiff / 60000)} minutes!`);
+          
+          // Mark as reminded
+          const updatedMeeting = { ...meeting, reminderSent: true };
+          saveMeeting(updatedMeeting, false);
+        }
+      }
+    });
+  };
+
+  const addNotification = (message) => {
+    const notification = {
+      id: Date.now(),
+      message,
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setNotifications(prev => [notification, ...prev].slice(0, 5));
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+    }, 10000);
+  };
+
+  // Check cognitive load (meetings per day)
+  const checkCognitiveLoad = (date) => {
+    const dateStr = new Date(date).toISOString().split('T')[0];
+    const dayMeetings = meetings.filter(m => m.date === dateStr);
+    
+    if (dayMeetings.length >= 5) {
+      return {
+        level: 'high',
+        message: `⚠️ HIGH WORKLOAD: ${dayMeetings.length} meetings scheduled on this day!`,
+        color: 'text-red-600'
+      };
+    } else if (dayMeetings.length >= 3) {
+      return {
+        level: 'medium',
+        message: `⚡ Moderate load: ${dayMeetings.length} meetings on this day`,
+        color: 'text-yellow-600'
+      };
+    }
+    return null;
+  };
+
+  const saveMeeting = async (meeting, reload = true) => {
+    try {
+      const result = await window.storage.set(`meeting:${meeting.id}`, JSON.stringify(meeting));
+      if (result && reload) {
+        // Update local state immediately
+        setMeetings(prev => {
+          const existing = prev.findIndex(m => m.id === meeting.id);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = meeting;
+            return updated;
+          }
+          return [...prev, meeting];
+        });
+      }
+    } catch (error) {
+      console.error('Error saving meeting:', error);
+      addNotification('Error saving meeting. Please try again.');
+    }
+  };
+
+  const deleteMeeting = async (meetingId) => {
+    console.log('Attempting to delete meeting:', meetingId);
+    try {
+      // First update UI immediately for instant feedback
+      setMeetings(prev => {
+        const filtered = prev.filter(m => m.id !== meetingId);
+        console.log('Meetings after filter:', filtered.length);
+        return filtered;
+      });
+      
+      // Then delete from storage
+      const result = await window.storage.delete(`meeting:${meetingId}`);
+      console.log('Delete result:', result);
+      
+      addNotification('Meeting deleted successfully');
+      
+      // Force reload after a brief delay to ensure sync
+      setTimeout(() => {
+        loadMeetings();
+      }, 100);
+    } catch (error) {
+      console.error('Error deleting meeting:', error);
+      addNotification('Error deleting meeting: ' + error.message);
+      // Reload to restore correct state
+      loadMeetings();
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.title || !formData.date || !formData.time || !formData.participants) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Check cognitive load before scheduling
+    const loadWarning = checkCognitiveLoad(formData.date);
+    if (loadWarning && loadWarning.level === 'high') {
+      const proceed = confirm(`${loadWarning.message}\n\nAre you sure you want to schedule another meeting on this day?`);
+      if (!proceed) return;
+    }
+    
+    const meeting = {
+      id: selectedMeeting?.id || Date.now().toString(),
+      ...formData,
+      participants: formData.participants.split(',').map(p => p.trim()),
+      createdAt: selectedMeeting?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'scheduled',
+      summary: '',
+      minutes: '',
+      reminderSent: false
+    };
+
+    await saveMeeting(meeting);
+    setShowModal(false);
+    resetForm();
+    
+    if (selectedMeeting) {
+      addNotification(`Meeting "${meeting.title}" updated successfully`);
+    } else {
+      addNotification(`Meeting "${meeting.title}" scheduled successfully`);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      date: '',
+      time: '',
+      duration: '60',
+      participants: '',
+      priority: 'medium',
+      agenda: '',
+      documents: []
+    });
+    setSelectedMeeting(null);
+  };
+
+  const editMeeting = (meeting) => {
+    setSelectedMeeting(meeting);
+    setFormData({
+      title: meeting.title,
+      date: meeting.date,
+      time: meeting.time,
+      duration: meeting.duration,
+      participants: meeting.participants.join(', '),
+      priority: meeting.priority,
+      agenda: meeting.agenda,
+      documents: meeting.documents || []
+    });
+    setShowModal(true);
+  };
+
+  const openRescheduleModal = (meeting) => {
+    setRescheduleData({
+      meetingId: meeting.id,
+      newDate: meeting.date,
+      newTime: meeting.time
+    });
+    setShowRescheduleModal(true);
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleData.newDate || !rescheduleData.newTime) {
+      alert('Please select both date and time');
+      return;
+    }
+
+    const meeting = meetings.find(m => m.id === rescheduleData.meetingId);
+    if (!meeting) return;
+
+    // Check cognitive load for new date
+    const loadWarning = checkCognitiveLoad(rescheduleData.newDate);
+    if (loadWarning && loadWarning.level === 'high') {
+      const proceed = confirm(`${loadWarning.message}\n\nAre you sure you want to reschedule to this day?`);
+      if (!proceed) return;
+    }
+
+    const updatedMeeting = {
+      ...meeting,
+      date: rescheduleData.newDate,
+      time: rescheduleData.newTime,
+      updatedAt: new Date().toISOString(),
+      reminderSent: false
+    };
+
+    await saveMeeting(updatedMeeting);
+    setShowRescheduleModal(false);
+    addNotification(`Meeting "${meeting.title}" rescheduled successfully`);
+  };
+
+  const completeMeeting = async (meeting) => {
+    const summary = prompt('Enter meeting summary:');
+    const minutes = prompt('Enter meeting minutes:');
+    
+    if (summary || minutes) {
+      const updatedMeeting = {
+        ...meeting,
+        status: 'completed',
+        summary: summary || '',
+        minutes: minutes || '',
+        updatedAt: new Date().toISOString()
+      };
+      await saveMeeting(updatedMeeting);
+      addNotification(`Meeting "${meeting.title}" marked as complete`);
+    }
+  };
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    return { daysInMonth, startingDayOfWeek };
+  };
+
+  const getMeetingsForDate = (date) => {
+    const dateStr = new Date(date).toISOString().split('T')[0];
+    return meetings.filter(m => m.date === dateStr);
+  };
+
+  const sortedMeetings = [...meetings].sort((a, b) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+      return priorityOrder[b.priority] - priorityOrder[a.priority];
+    }
+    return new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time);
+  });
+
+  const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentDate);
+  const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const previousMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  };
+
+  const priorityColors = {
+    high: 'bg-red-100 border-red-400 text-red-800',
+    medium: 'bg-yellow-100 border-yellow-400 text-yellow-800',
+    low: 'bg-green-100 border-green-400 text-green-800'
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Notifications */}
+        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+          {notifications.map(notif => (
+            <div
+              key={notif.id}
+              className="bg-indigo-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-start gap-3 animate-slide-in"
+            >
+              <BellRing className="flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <p className="font-medium">{notif.message}</p>
+                <p className="text-xs text-indigo-200 mt-1">{notif.timestamp}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+                <Calendar className="text-indigo-600" />
+                AI Meeting Assistant
+              </h1>
+              <p className="text-gray-600 mt-1">Smart scheduling with cognitive load monitoring & reminders</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setView(view === 'calendar' ? 'list' : 'calendar')}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+              >
+                {view === 'calendar' ? 'List View' : 'Calendar View'}
+              </button>
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
+              >
+                <Plus size={20} />
+                Schedule Meeting
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar View */}
+        {view === 'calendar' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="flex justify-between items-center mb-6">
+              <button onClick={previousMonth} className="p-2 hover:bg-gray-100 rounded">
+                <ChevronLeft />
+              </button>
+              <h2 className="text-2xl font-bold text-gray-800">{monthName}</h2>
+              <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded">
+                <ChevronRight />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-2 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center font-semibold text-gray-600 py-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-7 gap-2">
+              {[...Array(startingDayOfWeek)].map((_, i) => (
+                <div key={`empty-${i}`} className="h-32 bg-gray-50 rounded"></div>
+              ))}
+              
+              {[...Array(daysInMonth)].map((_, i) => {
+                const day = i + 1;
+                const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayMeetings = getMeetingsForDate(date);
+                const loadWarning = checkCognitiveLoad(date);
+                
+                return (
+                  <div
+                    key={day}
+                    className={`h-32 border-2 rounded p-2 hover:bg-gray-50 transition overflow-y-auto ${
+                      loadWarning?.level === 'high' ? 'border-red-300 bg-red-50' :
+                      loadWarning?.level === 'medium' ? 'border-yellow-300 bg-yellow-50' :
+                      'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-gray-700">{day}</span>
+                      {loadWarning && (
+                        <AlertTriangle 
+                          size={14} 
+                          className={loadWarning.level === 'high' ? 'text-red-500' : 'text-yellow-500'}
+                        />
+                      )}
+                    </div>
+                    {dayMeetings.map(meeting => (
+                      <div
+                        key={meeting.id}
+                        className={`text-xs p-1 rounded mb-1 border cursor-pointer ${priorityColors[meeting.priority]}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          {meeting.priority === 'high' && <Star size={10} fill="currentColor" />}
+                          <span className="truncate">{meeting.time}</span>
+                        </div>
+                        <div className="truncate font-medium">{meeting.title}</div>
+                        <button
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (window.confirm(`Delete "${meeting.title}"?`)) {
+                              await deleteMeeting(meeting.id);
+                            }
+                          }}
+                          className="mt-1 px-2 py-0.5 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <div className="mt-6 flex gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-50 border-2 border-red-300 rounded"></div>
+                <span>High Load (5+ meetings)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-50 border-2 border-yellow-300 rounded"></div>
+                <span>Medium Load (3-4 meetings)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* List View */}
+        {view === 'list' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">All Meetings (Priority Sorted)</h2>
+            
+            {sortedMeetings.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Calendar size={48} className="mx-auto mb-4 opacity-50" />
+                <p>No meetings scheduled yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sortedMeetings.map(meeting => {
+                  const loadWarning = checkCognitiveLoad(meeting.date);
+                  return (
+                    <div
+                      key={meeting.id}
+                      className={`border-l-4 p-4 rounded-r-lg ${priorityColors[meeting.priority]}`}
+                    >
+                      {loadWarning && (
+                        <div className={`flex items-center gap-2 mb-2 ${loadWarning.color} text-sm font-medium`}>
+                          <AlertTriangle size={16} />
+                          {loadWarning.message}
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            {meeting.priority === 'high' && <Star size={16} fill="currentColor" />}
+                            <h3 className="text-lg font-bold">{meeting.title}</h3>
+                            <span className="text-xs px-2 py-1 bg-white rounded">
+                              {meeting.priority.toUpperCase()}
+                            </span>
+                            {meeting.reminderSent && (
+                              <span className="text-xs px-2 py-1 bg-green-200 text-green-800 rounded flex items-center gap-1">
+                                <Bell size={12} />
+                                Reminded
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                            <div className="flex items-center gap-2">
+                              <Calendar size={16} />
+                              <span>{new Date(meeting.date).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock size={16} />
+                              <span>{meeting.time} ({meeting.duration} min)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Users size={16} />
+                              <span>{meeting.participants.join(', ')}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <FileText size={16} />
+                              <span>Status: {meeting.status}</span>
+                            </div>
+                          </div>
+                          
+                          {meeting.agenda && (
+                            <div className="bg-white bg-opacity-50 p-3 rounded mb-2">
+                              <strong>Agenda:</strong> {meeting.agenda}
+                            </div>
+                          )}
+                          
+                          {meeting.summary && (
+                            <div className="bg-white bg-opacity-50 p-3 rounded mb-2">
+                              <strong>Summary:</strong> {meeting.summary}
+                            </div>
+                          )}
+                          
+                          {meeting.minutes && (
+                            <div className="bg-white bg-opacity-50 p-3 rounded">
+                              <strong>Minutes:</strong> {meeting.minutes}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => openRescheduleModal(meeting)}
+                            className="p-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+                            title="Reschedule"
+                          >
+                            <RefreshCw size={18} />
+                          </button>
+                          {meeting.status === 'scheduled' && (
+                            <button
+                              onClick={() => completeMeeting(meeting)}
+                              className="p-2 bg-green-500 text-white rounded hover:bg-green-600"
+                              title="Complete Meeting"
+                            >
+                              <FileText size={18} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => editMeeting(meeting)}
+                            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            title="Edit"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Delete this meeting?')) {
+                                deleteMeeting(meeting.id);
+                              }
+                            }}
+                            className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schedule/Edit Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold mb-6">
+                  {selectedMeeting ? 'Edit Meeting' : 'Schedule New Meeting'}
+                </h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Meeting Title *</label>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      placeholder="e.g., Team Standup"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Date *</label>
+                      <input
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => setFormData({...formData, date: e.target.value})}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Time *</label>
+                      <input
+                        type="time"
+                        value={formData.time}
+                        onChange={(e) => setFormData({...formData, time: e.target.value})}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Duration (minutes) *</label>
+                      <input
+                        type="number"
+                        value={formData.duration}
+                        onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Priority *</label>
+                      <select
+                        value={formData.priority}
+                        onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Participants (comma-separated) *</label>
+                    <input
+                      type="text"
+                      value={formData.participants}
+                      onChange={(e) => setFormData({...formData, participants: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      placeholder="e.g., john@example.com, jane@example.com"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Agenda</label>
+                    <textarea
+                      value={formData.agenda}
+                      onChange={(e) => setFormData({...formData, agenda: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      rows="4"
+                      placeholder="Meeting agenda and discussion points..."
+                    />
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={handleSubmit}
+                      className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+                    >
+                      {selectedMeeting ? 'Update Meeting' : 'Schedule Meeting'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowModal(false);
+                        resetForm();
+                      }}
+                      className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reschedule Modal */}
+        {showRescheduleModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                  <RefreshCw className="text-purple-600" />
+                  Reschedule Meeting
+                </h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">New Date *</label>
+                    <input
+                      type="date"
+                      value={rescheduleData.newDate}
+                      onChange={(e) => setRescheduleData({...rescheduleData, newDate: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">New Time *</label>
+                    <input
+                      type="time"
+                      value={rescheduleData.newTime}
+                      onChange={(e) => setRescheduleData({...rescheduleData, newTime: e.target.value})}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={handleReschedule}
+                      className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
+                    >
+                      Reschedule
+                    </button>
+                    <button
+                      onClick={() => setShowRescheduleModal(false)}
+                      className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <style jsx>{`
+        @keyframes slide-in {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default MeetingAssistant;
