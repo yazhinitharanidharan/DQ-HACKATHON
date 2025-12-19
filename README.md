@@ -1,10 +1,10 @@
-🚀 Nexi – Chronos AI Personal Assistant
+Nexi – Chronos AI Personal Assistant
 
 Nexi is a smart productivity application powered by Chronos AI, a personal AI assistant designed to help users manage tasks, schedules, emails, and meetings efficiently.
 The system combines a modern Expo (React Native) frontend, intelligent AI logic, and automation workflows to create a seamless personal secretary experience.
 
-✨ Key Features
-🧠 Chronos AI (Personal Assistant)
+Key Features:
+Chronos AI (Personal Assistant)
 
 Conversational AI interface
 
@@ -16,7 +16,7 @@ Gives motivational and productivity-focused responses
 
 Smart intent detection (add task, change priority, ask status)
 
-✅ Task Management
+Task Management
 
 Add, complete, and track tasks
 
@@ -30,13 +30,13 @@ Productivity streak & focus score
 
 Cognitive overload detection with AI insights
 
-📅 Calendar (Planned Extension)
+Calendar (Planned Extension)
 
 Schedule-based workflow planning
 
 Future integration with meetings and reminders
 
-✉️ Email Agent (Automation)
+Email Agent (Automation)
 
 Trigger email workflows via UI
 
@@ -48,7 +48,7 @@ Auto-label important emails
 
 Auto-reply for urgent messages
 
-🤝 Meetings Module
+Meetings Module:
 
 Meeting Analyzer (separate page)
 
@@ -56,7 +56,7 @@ Document / Meeting Brief Generator (separate page)
 
 Clean navigation without cluttering the tab bar
 
-🧩 Tech Stack
+Tech Stack:
 Frontend
 
 Expo (React Native)
@@ -83,7 +83,7 @@ Gmail Trigger & Webhooks
 
 AI-powered email classification
 
-📂 Project Structure
+Project Structure
 nexi-app/
 │
 ├── app/
@@ -109,7 +109,7 @@ nexi-app/
 │
 └── README.md
 
-🧠 How Chronos AI Works
+How Chronos AI Works:
 
 User enters a message
 
@@ -129,20 +129,20 @@ Tasks are synced globally via Context API
 
 This hybrid approach ensures:
 
-⚡ Fast responses
+Fast responses
 
-🔐 Offline safety
+Offline safety
 
 🤖 Real AI intelligence when available
 
-▶️ How to Run the Project
-1️⃣ Install dependencies
+How to Run the Project
+Install dependencies
 npm install
 
-2️⃣ Start Expo
+Start Expo
 npx expo start
 
-3️⃣ Run on:
+Run on:
 
 Web
 
@@ -150,7 +150,7 @@ Android Emulator
 
 Physical Device (Expo Go)
 
-🔐 Environment Notes
+Environment Notes:
 
 AI API keys are handled in the backend
 
@@ -158,7 +158,7 @@ n8n workflows must be ACTIVE
 
 Webhooks are securely triggered from the app
 
-🌱 Future Enhancements
+Future Enhancements:
 
 Voice input for Chronos
 
@@ -172,7 +172,7 @@ Multi-user authentication
 
 Cloud task storage
 
-👥 Team & Hackathon
+Team & Hackathon:
 
 This project was built as part of a hackathon, focusing on:
 
